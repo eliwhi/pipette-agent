@@ -14,6 +14,8 @@ import time
 from .session import TOOL_SCHEMAS, Session
 
 DEFAULT_MODEL = os.environ.get("PIPETTE_AGENT_MODEL", "claude-sonnet-5-5")
+# Room for a long plan in a single reply; 4096 cut some runs off before they moved any liquid.
+MAX_TOKENS = 16_000
 
 SYSTEM_PROMPT = """You are a laboratory automation agent operating a single-channel liquid handler.
 You can only act through the provided tools. All volumes are in microlitres (uL).
@@ -49,10 +51,11 @@ class ClaudeAgent:
         transcript = []
         start = time.time()
         turns = 0
+        stop_reason = None
         for turns in range(1, self.max_turns + 1):
             resp = self.client.messages.create(
                 model=self.model,
-                max_tokens=4096,
+                max_tokens=MAX_TOKENS,
                 system=SYSTEM_PROMPT,
                 tools=TOOL_SCHEMAS,
                 messages=messages,
@@ -60,6 +63,11 @@ class ClaudeAgent:
             usage["input_tokens"] += resp.usage.input_tokens
             usage["output_tokens"] += resp.usage.output_tokens
             messages.append({"role": "assistant", "content": resp.content})
+            stop_reason = resp.stop_reason
+            if stop_reason == "max_tokens":
+                # the reply was cut off; a truncated tool call must not reach the hardware
+                transcript.append({"turn": turns, "type": "cut_off", "text": "Reply hit the max_tokens limit."})
+                break
 
             tool_results = []
             for block in resp.content:
@@ -86,6 +94,7 @@ class ClaudeAgent:
         return {
             "policy": self.name,
             "turns": turns,
+            "stop_reason": stop_reason,
             "usage": usage,
             "seconds": round(time.time() - start, 1),
             "transcript": transcript,

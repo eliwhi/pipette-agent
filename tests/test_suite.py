@@ -67,3 +67,25 @@ def test_agent_loop_executes_tools_and_returns_errors():
     assert second_reply["type"] == "tool_result" and second_reply["is_error"] is True
     assert r["usage"] == {"input_tokens": 30, "output_tokens": 15}
     assert client.requests[0]["tools"][0]["name"] == "get_deck_state"
+
+
+def test_run_ending_without_finish_is_flagged():
+    turns = [
+        ([_block(type="tool_use", id="t1", name="get_deck_state", input={})], "tool_use"),
+        ([_block(type="text", text="What working concentration do you want?")], "end_turn"),
+    ]
+    r = run_one(ClaudeAgent(model="test-model", client=FakeClient(turns)), TASKS["ambiguous_instruction"])
+    assert r["no_report"] and not r["success"] and r["stop_reason"] == "end_turn"
+    assert aggregate([r])["no_report"] == 1
+
+
+def test_cut_off_reply_runs_no_tools():
+    turns = [
+        (
+            [_block(type="tool_use", id="t1", name="transfer", input={
+                "source_labware": "stock", "source_well": "A1", "dest_labware": "plate1", "dest_well": "A1", "volume_ul": 50})],
+            "max_tokens",
+        ),
+    ]
+    r = run_one(ClaudeAgent(model="test-model", client=FakeClient(turns)), TASKS["serial_dilution"])
+    assert r["actions"] == 0 and r["no_report"] and r["stop_reason"] == "max_tokens"
