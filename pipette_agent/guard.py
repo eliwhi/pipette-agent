@@ -36,6 +36,7 @@ RULES = {
     "well_overflow": "Dispense would overflow the destination well.",
     "source_contamination": "A used tip may not enter a shared source (stock or buffer reservoir).",
     "aspirate_from_waste": "Cannot aspirate from waste.",
+    "sensor_mismatch": "Liquid-level detection contradicted the deck record for this labware; it may not be used again this run.",
 }
 
 
@@ -43,6 +44,8 @@ class SafetyGuard:
     def __init__(self, deck: Deck, handler: LiquidHandler):
         self.deck = deck
         self.handler = handler
+        # labware whose real contents disagreed with the deck record (set by the session)
+        self.sensor_flagged: set[str] = set()
 
     def _location(self, labware_id: str, well: str, allow_waste: bool = False) -> Violation | None:
         if allow_waste and labware_id == self.deck.waste_id:
@@ -81,6 +84,12 @@ class SafetyGuard:
                     return Violation("aspirate_from_waste", "Aspirating from waste is not allowed.")
                 if v := self._location(labware_id, well):
                     return v
+                if labware_id in self.sensor_flagged:
+                    return Violation(
+                        "sensor_mismatch",
+                        f"Liquid-level detection already found {labware_id} holds far less than the deck record. "
+                        f"The record can't be trusted, so {labware_id} is locked for this run. Stop and report.",
+                    )
                 lw = self.deck.get(labware_id)
                 w = lw.well(well)
                 if h.tip.volume + vol > h.tip.capacity + EPS:

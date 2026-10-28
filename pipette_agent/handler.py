@@ -17,6 +17,14 @@ class HardwareError(Exception):
     """A physical failure the agent could not have predicted from the deck state."""
 
 
+class LiquidLevelError(HardwareError):
+    """Liquid-level detection found less liquid than the deck state records."""
+
+    def __init__(self, message: str, labware_id: str):
+        super().__init__(message)
+        self.labware_id = labware_id
+
+
 @dataclass
 class Faults:
     tip_pickup_fail_on: list[int] = field(default_factory=list)  # 1-based pickup attempt numbers that fail
@@ -58,9 +66,10 @@ class LiquidHandler:
         if labware_id in self._true_volume:
             available = self._true_volume[labware_id] - lw.dead_volume
             if volume > available + 1e-9:
-                raise HardwareError(
+                raise LiquidLevelError(
                     f"Liquid level detection: insufficient liquid in {labware_id}:{well}. "
-                    f"Aspiration of {volume} uL aborted; the trough appears to hold far less than recorded."
+                    f"Aspiration of {volume} uL aborted; the trough appears to hold far less than recorded.",
+                    labware_id,
                 )
             self._true_volume[labware_id] -= volume
         taken = w.remove(volume)

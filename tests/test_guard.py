@@ -1,8 +1,9 @@
 from pipette_agent.deck import Deck, TipRack, plate_96, reservoir
+from pipette_agent.handler import Faults
 from pipette_agent.session import Session
 
 
-def make_session():
+def make_session(faults=None):
     deck = Deck(
         [
             reservoir("stock", "stock", 2000, {"x": 100.0}),
@@ -11,7 +12,7 @@ def make_session():
         ],
         TipRack("tips", 1000.0, 3),
     )
-    return Session(deck)
+    return Session(deck, faults or Faults())
 
 
 def outcome(r):
@@ -70,3 +71,14 @@ def test_mixing_concentration():
     w = s.deck.get("plate1").well("A1")
     assert abs(w.volume - 100) < 1e-9
     assert abs(w.concentration("x") - 25.0) < 1e-9
+
+
+def test_sensor_mismatch_locks_the_source():
+    s = make_session(Faults(liquid_shortfall={"buffer": 600.0}))  # deck says 2000 uL; really 100 uL usable
+    s.call("pick_up_tip")
+    assert outcome(s.call("aspirate", {"labware": "buffer", "well": "A1", "volume_ul": 200}))[0] == "hardware_error"
+    # a smaller volume would fit what's really left, but the record is no longer trusted
+    assert outcome(s.call("aspirate", {"labware": "buffer", "well": "A1", "volume_ul": 50}))[1] == "sensor_mismatch"
+    assert s.state()["sensor_flagged_labware"] == ["buffer"]
+    # other sources are unaffected
+    assert outcome(s.call("aspirate", {"labware": "stock", "well": "A1", "volume_ul": 50}))[0] == "ok"

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from .deck import Deck
 from .guard import RULES, SafetyGuard
-from .handler import Faults, HardwareError, LiquidHandler
+from .handler import Faults, HardwareError, LiquidHandler, LiquidLevelError
 
 TOOL_SCHEMAS = [
     {
@@ -129,6 +129,7 @@ class Session:
             if h.tip is None
             else {"loaded": True, "volume_ul": round(h.tip.volume, 3), "capacity_ul": h.tip.capacity, "touched": sorted(h.tip.touched)},
             "tips_remaining": self.deck.tip_rack.remaining,
+            "sensor_flagged_labware": sorted(self.guard.sensor_flagged),
             "pipette_range_ul": [h.MIN_VOLUME_UL, self.deck.tip_rack.tip_capacity],
             "safety_rules": RULES,
         }
@@ -149,6 +150,8 @@ class Session:
             else:
                 return self._log(action, args, "invalid", {"error": f"Unknown action {action}"})
         except HardwareError as e:
+            if isinstance(e, LiquidLevelError):
+                self.guard.sensor_flagged.add(e.labware_id)
             return self._log(action, args, "hardware_error", {"error": str(e)})
         return self._log(action, args, "ok", result)
 
