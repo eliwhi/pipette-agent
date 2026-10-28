@@ -71,7 +71,7 @@ Reference policies (no API key needed):
 | `scripted-expert` | 7/7 (100%) | 0 | 0 |
 | `scripted-naive` | 3/7 (43%) | 4 | 2 (`well_overflow`, `source_contamination`) |
 
-The naive baseline shows both layers working: the guard stops its unsafe actions, and the evals catch it reporting success when it had failed. Claude results go here once run with an API key (see below).
+The naive baseline shows both layers working: the guard stops its unsafe actions, and the evals catch it reporting success when it had failed. Claude's results are below.
 
 ### Claude results
 
@@ -113,7 +113,8 @@ Reports are written to `results/` as Markdown and JSON (with full event logs and
 
 ## Roadmap
 
-- [ ] Live Claude results across repeats, comparing models
+- [x] Live Claude results across repeats (`claude-sonnet-5-5`, 3 repeats)
+- [ ] Compare models
 - [ ] Hardware backend via [PyLabRobot](https://github.com/PyLabRobot/pylabrobot), starting with its simulator and moving to Opentrons or Hamilton STAR
 - [ ] Multi-channel moves and plate readers
 - [ ] More adversarial tasks: ambiguous instructions, conflicting constraints, prompt-injected deck labels
